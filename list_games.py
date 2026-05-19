@@ -590,6 +590,7 @@ def _hltb_lookup(name: str) -> dict:
                     "main":     r.main_story,
                     "extra":    r.main_extra,
                     "complete": r.completionist,
+                    "url":      r.game_web_link,
                 }
         except Exception:
             pass
@@ -647,6 +648,7 @@ def fetch_hltb(games: list[dict]) -> list[dict]:
         g["hours_main"]     = data.get("main")
         g["hours_extra"]    = data.get("extra")
         g["hours_complete"] = data.get("complete")
+        g["hltb_url"]       = data.get("url")
 
     return games
 
@@ -706,7 +708,7 @@ def export_html(games: list[dict], path: Path) -> None:
         key = _normalize_name(g["name"])
         if key not in merged:
             merged[key] = {"name": g["name"], "platforms": [], "hours_played": "", "genres": [],
-                           "hours_main": None, "hours_extra": None, "hours_complete": None}
+                           "hours_main": None, "hours_extra": None, "hours_complete": None, "hltb_url": None}
         m = merged[key]
         if g["platform"] not in m["platforms"]:
             m["platforms"].append(g["platform"])
@@ -716,6 +718,7 @@ def export_html(games: list[dict], path: Path) -> None:
             m["hours_main"]     = g["hours_main"]
             m["hours_extra"]    = g.get("hours_extra")
             m["hours_complete"] = g.get("hours_complete")
+            m["hltb_url"]       = g.get("hltb_url")
         for genre in g.get("genres", []):
             if genre not in m["genres"]:
                 m["genres"].append(genre)
@@ -786,10 +789,13 @@ def export_html(games: list[dict], path: Path) -> None:
         genre_data = " ".join(_slug(genre) for genre in genres)
         # HLTB
         hm, he, hc = g.get("hours_main"), g.get("hours_extra"), g.get("hours_complete")
+        hurl = g.get("hltb_url") or ""
         if hm is not None:
-            parts = [f"Extra {_fmt_h(he)}" if he else "", f"100 % {_fmt_h(hc)}" if hc else ""]
+            parts = [f"Extra\u00a0{_fmt_h(he)}" if he else "", f"100\u00a0%\u00a0{_fmt_h(hc)}" if hc else ""]
             tooltip = " | ".join(p for p in parts if p)
-            hltb_td = f'<td class="hltb" title="{tooltip}">{_fmt_h(hm)}</td>'
+            label = _fmt_h(hm)
+            inner = f'<a href="{hurl}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">{label}</a>' if hurl else label
+            hltb_td = f'<td class="hltb" title="{tooltip}">{inner}</td>'
         else:
             hltb_td = '<td class="hltb"></td>'
         rows += (
