@@ -1,0 +1,15 @@
+# Configuration personnelle (ne pas partager — contient clé API et données privées)
+config.py
+
+# Fichiers générés
+games_library.csv
+games_library.html
+
+# Fichiers de debug
+_inspect_ubi.py
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
