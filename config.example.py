@@ -23,3 +23,10 @@ UBI_MANUAL_GAMES: list[str] = [
     # "Assassin's Creed™",
     # "Rayman Origins",
 ]
+
+# ── DLC manuels ───────────────────────────────────────────────────
+# Noms exacts de DLC/extensions non détectés automatiquement via Steam.
+# Ces entrées recevront le tag « DLC » dans l'export.
+MANUAL_DLCS: list[str] = [
+    # "Borderlands 3 Bounty of Blood",
+]

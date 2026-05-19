@@ -5,6 +5,7 @@ config.py
 games_library.csv
 games_library.html
 genres_cache.json
+hltb_cache.json
 
 # Fichiers de debug
 _inspect_ubi.py

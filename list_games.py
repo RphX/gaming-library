@@ -17,6 +17,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     import requests
@@ -26,13 +27,20 @@ except ImportError:
     print("⚠️  Module 'requests' introuvable — Steam désactivé. Installez-le avec : pip install requests")
 
 try:
-    from config import STEAM_API_KEY, STEAM_ID, EGS_MANUAL_GAMES, UBI_MANUAL_GAMES
+    from howlongtobeatpy import HowLongToBeat
+    HAS_HLTB = True
+except ImportError:
+    HAS_HLTB = False
+
+try:
+    from config import STEAM_API_KEY, STEAM_ID, EGS_MANUAL_GAMES, UBI_MANUAL_GAMES, MANUAL_DLCS
 except ImportError:
     print("⚠️  Fichier config.py introuvable. Copiez config.example.py en config.py et remplissez vos informations.")
     STEAM_API_KEY = ""
     STEAM_ID      = ""
     EGS_MANUAL_GAMES = []
     UBI_MANUAL_GAMES = []
+    MANUAL_DLCS = []
 
 
 def _normalize_name(s: str) -> str:
@@ -314,7 +322,7 @@ def get_gog_games() -> list[dict]:
         # Jeux GOG possédés, sans DLC ni extras
         try:
             cur.execute("""
-                SELECT DISTINCT gp.value, COALESCE(gt.minutesInGame, 0)
+                SELECT DISTINCT lr.releaseKey, gp.value, COALESCE(gt.minutesInGame, 0)
                 FROM LibraryReleases lr
                 JOIN LicensedReleases lic ON lr.id = lic.libraryId
                 JOIN GamePieces gp ON gp.releaseKey = lr.releaseKey
@@ -327,13 +335,14 @@ def get_gog_games() -> list[dict]:
                   AND (rp.isDlc = 0 OR rp.isDlc IS NULL)
                   AND (rp.isVisibleInLibrary = 1 OR rp.isVisibleInLibrary IS NULL)
             """)
-            for (val, minutes) in cur.fetchall():
+            for (release_key, val, minutes) in cur.fetchall():
                 try:
                     obj = json.loads(val)
                     name = obj.get("title") or obj.get("originalTitle")
                     if name:
                         hours = round(minutes / 60, 1) if minutes else ""
-                        games.append({"name": name, "platform": "GOG", "app_id": "", "hours_played": hours})
+                        gog_id = release_key.replace("gog_", "") if release_key and release_key.startswith("gog_") else ""
+                        games.append({"name": name, "platform": "GOG", "app_id": gog_id, "hours_played": hours})
                 except Exception:
                     pass
         except Exception:
@@ -374,10 +383,11 @@ def get_ubisoft_games() -> list[dict]:
 #  GENRES  (Steam Store API + cache local)
 # ═══════════════════════════════════════════════════════════
 _GENRES_CACHE = Path(__file__).parent / "genres_cache.json"
+_HLTB_CACHE   = Path(__file__).parent / "hltb_cache.json"
 
 
 def fetch_genres(games: list[dict]) -> list[dict]:
-    """Enrichit les jeux Steam avec leurs genres (résultats mis en cache)."""
+    """Enrichit tous les jeux avec leurs genres — Steam, GOG, EGS, EA, Ubisoft (cache local)."""
     cache: dict[str, list[str]] = {}
     if _GENRES_CACHE.exists():
         try:
@@ -385,34 +395,259 @@ def fetch_genres(games: list[dict]) -> list[dict]:
         except Exception:
             pass
 
-    to_fetch = [
+    cache_dirty = False
+
+    # ── Steam : appdetails par app_id ──────────────────────────────────
+    to_fetch_steam = [
         g for g in games
         if g["platform"] == "Steam" and g["app_id"] and g["app_id"] not in cache
     ]
+    if to_fetch_steam and HAS_REQUESTS:
+        print(f"   Steam : {len(to_fetch_steam)} jeux à enrichir…")
 
-    if to_fetch and HAS_REQUESTS:
-        print(f"   Récupération des genres pour {len(to_fetch)} jeux (mise en cache locale)…")
-        for i, g in enumerate(to_fetch):
+        def _fetch_steam_one(app_id: str) -> tuple[str, list[str]]:
             try:
                 resp = requests.get(
                     "https://store.steampowered.com/api/appdetails",
-                    params={"appids": g["app_id"], "filters": "genres", "l": "english"},
+                    params={"appids": app_id, "filters": "basic,genres", "l": "english"},
                     timeout=10,
                 )
-                data = resp.json().get(g["app_id"], {})
-                cache[g["app_id"]] = [
-                    gr["description"] for gr in data.get("data", {}).get("genres", [])
-                ] if data.get("success") else []
+                if resp.status_code != 200:
+                    return app_id, []
+                entry = resp.json().get(app_id, {})
+                if not entry.get("success"):
+                    return app_id, []
+                d = entry.get("data", {})
+                genres = [gr["description"] for gr in d.get("genres", [])]
+                app_type = d.get("type", "")
+                if app_type == "dlc":
+                    genres = ["DLC"] + genres
+                elif app_type == "demo":
+                    genres = ["Demo"] + genres
+                elif app_type == "music":
+                    genres = ["Soundtrack"] + genres
+                return app_id, genres
             except Exception:
-                cache[g["app_id"]] = []
-            if (i + 1) % 20 == 0:
-                print(f"     {i + 1}/{len(to_fetch)}…")
-            time.sleep(0.25)
+                return app_id, []
+
+        done = 0
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {ex.submit(_fetch_steam_one, g["app_id"]): g["app_id"] for g in to_fetch_steam}
+            for fut in as_completed(futs):
+                app_id, genres = fut.result()
+                cache[app_id] = genres
+                done += 1
+                if done % 40 == 0:
+                    print(f"     {done}/{len(to_fetch_steam)}…")
+        cache_dirty = True
+
+    # ── GOG : DB locale GOG Galaxy (instantané, 0 appel réseau) ────────
+    to_fetch_gog = [
+        g for g in games
+        if g["platform"] == "GOG" and g["app_id"] and g["app_id"] not in cache
+    ]
+    if to_fetch_gog:
+        _gog_db_cands = [
+            Path(r"C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db"),
+            Path.home() / r"AppData\Local\GOG.com\Galaxy\storage\galaxy-2.0.db",
+        ]
+        _gog_db = next((p for p in _gog_db_cands if p.exists()), None)
+        if _gog_db:
+            try:
+                conn = sqlite3.connect(f"file:{_gog_db}?mode=ro", uri=True)
+                cur = conn.cursor()
+                keys = [f"gog_{g['app_id']}" for g in to_fetch_gog]
+                placeholders = ",".join("?" * len(keys))
+                cur.execute(
+                    f"SELECT gp.releaseKey, gp.value FROM GamePieces gp "
+                    f"JOIN GamePieceTypes gpt ON gp.gamePieceTypeId=gpt.id "
+                    f"WHERE gpt.type='meta' AND gp.releaseKey IN ({placeholders})",
+                    keys,
+                )
+                meta_map = {row[0]: json.loads(row[1]) for row in cur.fetchall()}
+                conn.close()
+                for g in to_fetch_gog:
+                    rk = f"gog_{g['app_id']}"
+                    cache[g["app_id"]] = meta_map.get(rk, {}).get("genres", [])
+                cache_dirty = True
+            except Exception:
+                pass
+
+    # ── EGS / EA / Ubisoft : Steam Store Search (parallèle) ──────────
+    _OTHER = ("EGS", "EA", "Ubisoft")
+    to_fetch_other = [
+        g for g in games
+        if g["platform"] in _OTHER
+        and f"name:{_normalize_name(g['name'])}" not in cache
+    ]
+    if to_fetch_other and HAS_REQUESTS:
+        print(f"   EGS/EA/Ubisoft : {len(to_fetch_other)} jeux à enrichir…")
+
+        def _fetch_one(name: str) -> tuple[str, list[str], str | None]:
+            ck = f"name:{_normalize_name(name)}"
+            try:
+                time.sleep(0.25)
+                r = requests.get(
+                    "https://store.steampowered.com/api/storesearch/",
+                    params={"term": name, "l": "en", "cc": "US"},
+                    timeout=10,
+                )
+                if r.status_code != 200:
+                    return ck, [], None
+                items = r.json().get("items", [])
+                # Fallback : titre court (sans sous-titre / variante française)
+                if not items:
+                    short = re.split(r'\s*[:–-]\s*', name, maxsplit=1)[0].strip()
+                    if short and short.lower() != name.lower():
+                        r_s = requests.get(
+                            "https://store.steampowered.com/api/storesearch/",
+                            params={"term": short, "l": "en", "cc": "US"},
+                            timeout=10,
+                        )
+                        if r_s.status_code == 200:
+                            items = r_s.json().get("items", [])
+                hit = next(
+                    (it for it in items if _normalize_name(it.get("name", "")) == _normalize_name(name)),
+                    items[0] if items else None,
+                )
+                if hit:
+                    aid = str(hit["id"])
+                    r2 = requests.get(
+                        "https://store.steampowered.com/api/appdetails",
+                        params={"appids": aid, "filters": "basic,genres", "l": "english"},
+                        timeout=10,
+                    )
+                    if r2.status_code != 200:
+                        return ck, [], None
+                    d2 = r2.json().get(aid, {})
+                    if d2.get("success"):
+                        data2 = d2.get("data", {})
+                        genres = [gr["description"] for gr in data2.get("genres", [])]
+                        app_type = data2.get("type", "")
+                        if app_type == "dlc":
+                            genres = ["DLC"] + genres
+                        elif app_type == "demo":
+                            genres = ["Demo"] + genres
+                        elif app_type == "music":
+                            genres = ["Soundtrack"] + genres
+                    else:
+                        genres = []
+                    return ck, genres, aid
+                return ck, [], None
+            except Exception:
+                return ck, [], None
+
+        done = 0
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futs = {ex.submit(_fetch_one, g["name"]): g["name"] for g in to_fetch_other}
+            for fut in as_completed(futs):
+                ck, genres, aid = fut.result()
+                cache[ck] = genres
+                if aid and aid not in cache:
+                    cache[aid] = genres
+                done += 1
+                if done % 20 == 0:
+                    print(f"     {done}/{len(to_fetch_other)}…")
+        cache_dirty = True
+
+    if cache_dirty:
         _GENRES_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
-        print(f"   ✅ Genres cachés ({len(cache)} jeux Steam)")
+        print(f"   ✅ Cache genres mis à jour ({len(cache)} entrées)")
+
+    # Assignation finale
+    _manual_dlc_set = {_normalize_name(n) for n in MANUAL_DLCS}
+    for g in games:
+        if g["platform"] in ("Steam", "GOG"):
+            g["genres"] = cache.get(g["app_id"], [])
+        else:
+            g["genres"] = cache.get(f"name:{_normalize_name(g['name'])}", [])
+        # DLC manuels (non détectés via Steam)
+        if _normalize_name(g["name"]) in _manual_dlc_set:
+            if "DLC" not in g["genres"]:
+                g["genres"] = ["DLC"] + g["genres"]
+    return games
+
+
+# ═══════════════════════════════════════════════════════════
+#  HLTB  (HowLongToBeat — temps de complétion)
+# ═══════════════════════════════════════════════════════════
+def _fmt_h(h: float | None) -> str:
+    """Formate un nombre d'heures HLTB en chaîne courte."""
+    if h is None:
+        return ""
+    r = round(h, 1)
+    return f"{int(r)}h" if r == int(r) else f"{r}h"
+
+
+def _hltb_lookup(name: str) -> dict:
+    """Recherche un jeu sur HLTB, retourne {main, extra, complete} ou {}."""
+    def _try(query: str) -> dict | None:
+        try:
+            results = HowLongToBeat().search(query, similarity_case_sensitive=False)
+            if results and results[0].similarity >= 0.5:
+                r = results[0]
+                return {
+                    "main":     r.main_story,
+                    "extra":    r.main_extra,
+                    "complete": r.completionist,
+                }
+        except Exception:
+            pass
+        return None
+
+    result = _try(name)
+    if result is None:
+        short = re.split(r'\s*[:\u2013-]\s*', name, maxsplit=1)[0].strip()
+        if short and short.lower() != name.lower():
+            result = _try(short)
+    return result or {}
+
+
+def fetch_hltb(games: list[dict]) -> list[dict]:
+    """Enrichit tous les jeux avec les temps de complétion HLTB (cache local)."""
+    if not HAS_HLTB:
+        print("   ⚠️  howlongtobeatpy manquant — pip install howlongtobeatpy")
+        for g in games:
+            g.setdefault("hours_main", None)
+            g.setdefault("hours_extra", None)
+            g.setdefault("hours_complete", None)
+        return games
+
+    cache: dict[str, dict] = {}
+    if _HLTB_CACHE.exists():
+        try:
+            cache = json.loads(_HLTB_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    # Ne fetch que les jeux absents du cache
+    to_fetch = [g for g in games if _normalize_name(g["name"]) not in cache]
+
+    if to_fetch:
+        print(f"   HLTB : {len(to_fetch)} jeux à enrichir…")
+
+        def _worker(g: dict) -> tuple[str, dict]:
+            return _normalize_name(g["name"]), _hltb_lookup(g["name"])
+
+        done = 0
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            futs = {ex.submit(_worker, g): g for g in to_fetch}
+            for fut in as_completed(futs):
+                nk, data = fut.result()
+                cache[nk] = data
+                done += 1
+                if done % 40 == 0:
+                    print(f"     {done}/{len(to_fetch)}…")
+
+        _HLTB_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"   ✅ Cache HLTB mis à jour ({len(cache)} entrées)")
 
     for g in games:
-        g["genres"] = cache.get(g["app_id"], []) if g["platform"] == "Steam" else []
+        data = cache.get(_normalize_name(g["name"]), {})
+        g["hours_main"]     = data.get("main")
+        g["hours_extra"]    = data.get("extra")
+        g["hours_complete"] = data.get("complete")
+
     return games
 
 
@@ -421,15 +656,18 @@ def fetch_genres(games: list[dict]) -> list[dict]:
 # ═══════════════════════════════════════════════════════════
 def export_csv(games: list[dict], path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "platform", "app_id", "hours_played", "genres"])
+        writer = csv.DictWriter(f, fieldnames=["name", "platform", "app_id", "hours_played", "genres", "hltb_main", "hltb_extra", "hltb_complete"])
         writer.writeheader()
         for g in games:
             writer.writerow({
-                "name":         g["name"],
-                "platform":     g["platform"],
-                "app_id":       g["app_id"],
-                "hours_played": g["hours_played"],
-                "genres":       ", ".join(g.get("genres", [])),
+                "name":          g["name"],
+                "platform":      g["platform"],
+                "app_id":        g["app_id"],
+                "hours_played":  g["hours_played"],
+                "genres":        ", ".join(g.get("genres", [])),
+                "hltb_main":     _fmt_h(g.get("hours_main")),
+                "hltb_extra":    _fmt_h(g.get("hours_extra")),
+                "hltb_complete": _fmt_h(g.get("hours_complete")),
             })
     print(f"   ✅ {path.name}")
 
@@ -439,17 +677,17 @@ def export_csv(games: list[dict], path: Path) -> None:
 # ═══════════════════════════════════════════════════════════
 _PLATFORM_COLOR = {
     "Steam":   "#66c0f4",
-    "EGS":     "#c97bf7",
-    "EA":      "#ff6a3d",
-    "GOG":     "#7b68ee",
+    "EGS":     "#0078f2",
+    "EA":      "#ff4500",
+    "GOG":     "#86328a",
     "Ubisoft": "#0070f3",
 }
 
 _PLATFORM_ICON = {
     "Steam":   "https://cdn.simpleicons.org/steam/66c0f4",
-    "EGS":     "https://cdn.simpleicons.org/epicgames/c97bf7",
-    "EA":      "https://cdn.simpleicons.org/ea/ff6a3d",
-    "GOG":     "https://cdn.simpleicons.org/gogdotcom/7b68ee",
+    "EGS":     "https://cdn.simpleicons.org/epicgames/0078f2",
+    "EA":      "https://cdn.simpleicons.org/ea/ff4500",
+    "GOG":     "https://cdn.simpleicons.org/gogdotcom/86328a",
     "Ubisoft": "https://cdn.simpleicons.org/ubisoft/0070f3",
 }
 
@@ -467,12 +705,17 @@ def export_html(games: list[dict], path: Path) -> None:
     for g in sorted(games, key=lambda x: _PLATFORM_PRIORITY.get(x["platform"], 99)):
         key = _normalize_name(g["name"])
         if key not in merged:
-            merged[key] = {"name": g["name"], "platforms": [], "hours_played": "", "genres": []}
+            merged[key] = {"name": g["name"], "platforms": [], "hours_played": "", "genres": [],
+                           "hours_main": None, "hours_extra": None, "hours_complete": None}
         m = merged[key]
         if g["platform"] not in m["platforms"]:
             m["platforms"].append(g["platform"])
         if m["hours_played"] == "" and g["hours_played"] != "":
             m["hours_played"] = g["hours_played"]
+        if m["hours_main"] is None and g.get("hours_main") is not None:
+            m["hours_main"]     = g["hours_main"]
+            m["hours_extra"]    = g.get("hours_extra")
+            m["hours_complete"] = g.get("hours_complete")
         for genre in g.get("genres", []):
             if genre not in m["genres"]:
                 m["genres"].append(genre)
@@ -541,9 +784,17 @@ def export_html(games: list[dict], path: Path) -> None:
         name_cell = g["name"] + (f'<div class="tags">{tags}</div>' if tags else "")
         plat_data  = " ".join(p.lower() for p in g["platforms"])
         genre_data = " ".join(_slug(genre) for genre in genres)
+        # HLTB
+        hm, he, hc = g.get("hours_main"), g.get("hours_extra"), g.get("hours_complete")
+        if hm is not None:
+            parts = [f"Extra {_fmt_h(he)}" if he else "", f"100 % {_fmt_h(hc)}" if hc else ""]
+            tooltip = " | ".join(p for p in parts if p)
+            hltb_td = f'<td class="hltb" title="{tooltip}">{_fmt_h(hm)}</td>'
+        else:
+            hltb_td = '<td class="hltb"></td>'
         rows += (
             f"<tr data-plats='{plat_data}' data-genres='{genre_data}'>"
-            f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}</tr>\n"
+            f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}{hltb_td}</tr>\n"
         )
 
     html = f"""<!DOCTYPE html>
@@ -585,6 +836,8 @@ def export_html(games: list[dict], path: Path) -> None:
   td.plat {{ width:56px; white-space:nowrap; padding-top:9px; }}
   td.plat img {{ vertical-align:middle; margin-right:3px; }}
   td.hrs  {{ text-align:right; color:#6b7280; font-size:.85em; width:72px; padding-top:9px; }}
+  td.hltb {{ text-align:right; color:#34d399; font-size:.82em; width:68px; padding-top:9px; cursor:default; }}
+  thead th.hltb {{ text-align:right; }}
   .tags {{ display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }}
   .tag  {{ background:#1e3a5f; color:#93c5fd; font-size:.72em; padding:2px 8px;
             border-radius:10px; }}
@@ -608,7 +861,7 @@ def export_html(games: list[dict], path: Path) -> None:
 </div>
 <p class="count-info"><span id="vis-count">{total}</span> / {total} jeux</p>
 <table>
-  <thead><tr><th></th><th>Jeu</th><th class="hrs">Heures</th></tr></thead>
+  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th></tr></thead>
   <tbody>
 {rows}  </tbody>
 </table>
@@ -692,6 +945,9 @@ def main() -> None:
 
     print("🏷️  Genres Steam…")
     all_games = fetch_genres(all_games)
+
+    print("⏱️  HowLongToBeat…")
+    all_games = fetch_hltb(all_games)
 
     if not all_games:
         print("Aucun jeu trouvé. Vérifiez la configuration.")
