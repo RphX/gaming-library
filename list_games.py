@@ -7,10 +7,8 @@ Configuration requise :
   - EGS / EA / GOG : détection automatique sur le poste local.
 """
 
-import os
 import re
 import json
-import glob
 import sqlite3
 import csv
 import time
@@ -183,10 +181,7 @@ def get_egs_games() -> list[dict]:
         print(f"   ✔  API Epic (Firefox) : {len(api_games)} entrées")
 
     # ── 3. GOG Galaxy (si EGS intégré) ────────────────────
-    db_candidates = [
-        Path(r"C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db"),
-        Path.home() / r"AppData\Local\GOG.com\Galaxy\storage\galaxy-2.0.db",
-    ]
+    db_candidates = _GOG_DB_PATHS
     db_path = next((p for p in db_candidates if p.exists()), None)
     if db_path:
         try:
@@ -305,10 +300,7 @@ def get_ea_games() -> list[dict]:
 #  GOG GALAXY
 # ═══════════════════════════════════════════════════════════
 def get_gog_games() -> list[dict]:
-    db_candidates = [
-        Path(r"C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db"),
-        Path.home() / r"AppData\Local\GOG.com\Galaxy\storage\galaxy-2.0.db",
-    ]
+    db_candidates = _GOG_DB_PATHS
     db_path = next((p for p in db_candidates if p.exists()), None)
     if db_path is None:
         print("   ⚠️  GOG Galaxy : base de données introuvable.")
@@ -384,6 +376,10 @@ def get_ubisoft_games() -> list[dict]:
 # ═══════════════════════════════════════════════════════════
 _GENRES_CACHE = Path(__file__).parent / "genres_cache.json"
 _HLTB_CACHE   = Path(__file__).parent / "hltb_cache.json"
+_GOG_DB_PATHS = [
+    Path(r"C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db"),
+    Path.home() / r"AppData\Local\GOG.com\Galaxy\storage\galaxy-2.0.db",
+]
 
 
 def fetch_genres(games: list[dict]) -> list[dict]:
@@ -447,14 +443,10 @@ def fetch_genres(games: list[dict]) -> list[dict]:
         if g["platform"] == "GOG" and g["app_id"] and g["app_id"] not in cache
     ]
     if to_fetch_gog:
-        _gog_db_cands = [
-            Path(r"C:\ProgramData\GOG.com\Galaxy\storage\galaxy-2.0.db"),
-            Path.home() / r"AppData\Local\GOG.com\Galaxy\storage\galaxy-2.0.db",
-        ]
-        _gog_db = next((p for p in _gog_db_cands if p.exists()), None)
-        if _gog_db:
+        db_path = next((p for p in _GOG_DB_PATHS if p.exists()), None)
+        if db_path:
             try:
-                conn = sqlite3.connect(f"file:{_gog_db}?mode=ro", uri=True)
+                conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
                 cur = conn.cursor()
                 keys = [f"gog_{g['app_id']}" for g in to_fetch_gog]
                 placeholders = ",".join("?" * len(keys))
