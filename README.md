@@ -5,6 +5,10 @@ Generates a unified game library from **Steam**, **Epic Games Store**, **EA App*
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 
+## Preview
+
+[![Preview de la bibliothèque](docs/preview.png)](docs/preview.html)
+
 ## Output
 
 - `games_library.csv` — flat list of all games with platform, app ID, playtime, genres and HLTB completion times
