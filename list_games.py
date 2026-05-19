@@ -13,6 +13,7 @@ import json
 import glob
 import sqlite3
 import csv
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from datetime import datetime
@@ -370,13 +371,66 @@ def get_ubisoft_games() -> list[dict]:
 
 
 # ═══════════════════════════════════════════════════════════
+#  GENRES  (Steam Store API + cache local)
+# ═══════════════════════════════════════════════════════════
+_GENRES_CACHE = Path(__file__).parent / "genres_cache.json"
+
+
+def fetch_genres(games: list[dict]) -> list[dict]:
+    """Enrichit les jeux Steam avec leurs genres (résultats mis en cache)."""
+    cache: dict[str, list[str]] = {}
+    if _GENRES_CACHE.exists():
+        try:
+            cache = json.loads(_GENRES_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    to_fetch = [
+        g for g in games
+        if g["platform"] == "Steam" and g["app_id"] and g["app_id"] not in cache
+    ]
+
+    if to_fetch and HAS_REQUESTS:
+        print(f"   Récupération des genres pour {len(to_fetch)} jeux (mise en cache locale)…")
+        for i, g in enumerate(to_fetch):
+            try:
+                resp = requests.get(
+                    "https://store.steampowered.com/api/appdetails",
+                    params={"appids": g["app_id"], "filters": "genres", "l": "english"},
+                    timeout=10,
+                )
+                data = resp.json().get(g["app_id"], {})
+                cache[g["app_id"]] = [
+                    gr["description"] for gr in data.get("data", {}).get("genres", [])
+                ] if data.get("success") else []
+            except Exception:
+                cache[g["app_id"]] = []
+            if (i + 1) % 20 == 0:
+                print(f"     {i + 1}/{len(to_fetch)}…")
+            time.sleep(0.25)
+        _GENRES_CACHE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"   ✅ Genres cachés ({len(cache)} jeux Steam)")
+
+    for g in games:
+        g["genres"] = cache.get(g["app_id"], []) if g["platform"] == "Steam" else []
+    return games
+
+
+# ═══════════════════════════════════════════════════════════
 #  EXPORT CSV
 # ═══════════════════════════════════════════════════════════
 def export_csv(games: list[dict], path: Path) -> None:
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "platform", "app_id", "hours_played"])
+        writer = csv.DictWriter(f, fieldnames=["name", "platform", "app_id", "hours_played", "genres"])
         writer.writeheader()
-        writer.writerows(games)
+        for g in games:
+            writer.writerow({
+                "name":         g["name"],
+                "platform":     g["platform"],
+                "app_id":       g["app_id"],
+                "hours_played": g["hours_played"],
+                "genres":       ", ".join(g.get("genres", [])),
+            })
     print(f"   ✅ {path.name}")
 
 
@@ -403,26 +457,32 @@ _PLATFORM_PRIORITY = {"Steam": 0, "GOG": 1, "EGS": 2, "EA": 3, "Ubisoft": 4}
 
 
 def export_html(games: list[dict], path: Path) -> None:
-    # Compte par plateforme (pour la barre de stats)
+    # ── Compte par plateforme ──────────────────────────────
     by_platform: dict[str, list[dict]] = {}
     for g in games:
         by_platform.setdefault(g["platform"], []).append(g)
 
-    # Fusion cross-plateforme par nom normalisé (Steam en priorité)
+    # ── Fusion cross-plateforme par nom normalisé ─────────
     merged: dict[str, dict] = {}
     for g in sorted(games, key=lambda x: _PLATFORM_PRIORITY.get(x["platform"], 99)):
         key = _normalize_name(g["name"])
         if key not in merged:
-            merged[key] = {"name": g["name"], "platforms": [], "hours_played": ""}
+            merged[key] = {"name": g["name"], "platforms": [], "hours_played": "", "genres": []}
         m = merged[key]
         if g["platform"] not in m["platforms"]:
             m["platforms"].append(g["platform"])
         if m["hours_played"] == "" and g["hours_played"] != "":
             m["hours_played"] = g["hours_played"]
+        for genre in g.get("genres", []):
+            if genre not in m["genres"]:
+                m["genres"].append(genre)
 
     unified = sorted(merged.values(), key=lambda x: x["name"].lower())
     total = len(unified)
     ts = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    def _slug(s: str) -> str:
+        return re.sub(r'[^a-z0-9]', '-', s.lower()).strip('-')
 
     # ── Barre de stats ─────────────────────────────────────
     stats_html = (
@@ -442,7 +502,32 @@ def export_html(games: list[dict], path: Path) -> None:
             f'</div>\n'
         )
 
-    # ── Tableau unifié ─────────────────────────────────────
+    # ── Filtres plateforme ─────────────────────────────────
+    plat_btns = '<button class="fbtn active" data-type="plat" data-val="all">Toutes</button>\n'
+    for platform in ("Steam", "EGS", "EA", "GOG", "Ubisoft"):
+        icon = _PLATFORM_ICON[platform]
+        plat_btns += (
+            f'<button class="fbtn" data-type="plat" data-val="{platform.lower()}">'
+            f'<img src="{icon}" alt="" height="11" style="vertical-align:middle;margin-right:4px">'
+            f'{platform}</button>\n'
+        )
+
+    # ── Filtres genre (triés par fréquence) ───────────────
+    genre_count: dict[str, int] = {}
+    for g in unified:
+        for genre in g.get("genres", []):
+            genre_count[genre] = genre_count.get(genre, 0) + 1
+    all_genres = sorted(genre_count, key=lambda g: -genre_count[g])
+
+    genre_btns = '<button class="fbtn active" data-type="genre" data-val="all">Tous</button>\n'
+    for genre in all_genres:
+        genre_btns += (
+            f'<button class="fbtn" data-type="genre" data-val="{_slug(genre)}">'
+            f'{genre} <span class="gcnt">{genre_count[genre]}</span>'
+            f'</button>\n'
+        )
+
+    # ── Lignes du tableau ──────────────────────────────────
     rows = ""
     for g in unified:
         logos = "".join(
@@ -451,7 +536,15 @@ def export_html(games: list[dict], path: Path) -> None:
         )
         hrs = g["hours_played"]
         hrs_td = f'<td class="hrs">{hrs}h</td>' if hrs != "" else '<td class="hrs"></td>'
-        rows += f"<tr><td class='plat'>{logos}</td><td>{g['name']}</td>{hrs_td}</tr>\n"
+        genres = g.get("genres", [])
+        tags = "".join(f'<span class="tag">{genre}</span>' for genre in genres)
+        name_cell = g["name"] + (f'<div class="tags">{tags}</div>' if tags else "")
+        plat_data  = " ".join(p.lower() for p in g["platforms"])
+        genre_data = " ".join(_slug(genre) for genre in genres)
+        rows += (
+            f"<tr data-plats='{plat_data}' data-genres='{genre_data}'>"
+            f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}</tr>\n"
+        )
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -461,25 +554,40 @@ def export_html(games: list[dict], path: Path) -> None:
 <style>
   * {{ box-sizing: border-box; }}
   body  {{ font-family: 'Segoe UI', Arial, sans-serif; background:#111827; color:#e5e7eb;
-           max-width:900px; margin:0 auto; padding:20px; }}
+           max-width:960px; margin:0 auto; padding:20px; }}
   h1    {{ text-align:center; color:#f9fafb; margin-bottom:4px; }}
   .ts   {{ text-align:center; color:#6b7280; font-size:.85em; margin-bottom:20px; }}
   .stats {{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center;
-             background:#1f2937; border-radius:10px; padding:16px; margin-bottom:30px; }}
+             background:#1f2937; border-radius:10px; padding:16px; margin-bottom:16px; }}
   .stat  {{ text-align:center; border:2px solid #374151; border-radius:8px;
              padding:12px 24px; min-width:80px; display:flex; flex-direction:column;
              align-items:center; gap:6px; }}
   .num   {{ font-size:1.8em; font-weight:bold; color:#f9fafb; }}
   .lbl   {{ color:#9ca3af; font-size:.8em; }}
+  .filters {{ background:#1f2937; border-radius:10px; padding:14px 16px;
+               margin-bottom:12px; display:flex; flex-direction:column; gap:10px; }}
+  .filter-row {{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }}
+  .filter-label {{ color:#6b7280; font-size:.8em; width:74px; flex-shrink:0; }}
+  .fbtn {{ background:#374151; color:#d1d5db; border:none; border-radius:20px;
+            padding:4px 12px; font-size:.8em; cursor:pointer;
+            transition:all .15s; white-space:nowrap; }}
+  .fbtn:hover {{ background:#4b5563; }}
+  .fbtn.active {{ background:#4f46e5; color:#fff; }}
+  .gcnt {{ color:#9ca3af; font-size:.85em; }}
+  .fbtn.active .gcnt {{ color:#c7d2fe; }}
+  .count-info {{ text-align:right; color:#6b7280; font-size:.85em; margin-bottom:8px; }}
   table  {{ width:100%; border-collapse:collapse; font-size:.9em; }}
   thead th {{ background:#1f2937; padding:8px 12px; text-align:left;
               border-bottom:2px solid #374151; color:#9ca3af; font-weight:600; }}
   thead th.hrs {{ text-align:right; }}
-  tbody td {{ padding:7px 12px; border-bottom:1px solid #1f2937; }}
+  tbody td {{ padding:7px 12px; border-bottom:1px solid #1f2937; vertical-align:top; }}
   tbody tr:hover {{ background:#1f2937; }}
-  td.plat {{ width:56px; white-space:nowrap; }}
+  td.plat {{ width:56px; white-space:nowrap; padding-top:9px; }}
   td.plat img {{ vertical-align:middle; margin-right:3px; }}
-  td.hrs  {{ text-align:right; color:#6b7280; font-size:.85em; width:72px; }}
+  td.hrs  {{ text-align:right; color:#6b7280; font-size:.85em; width:72px; padding-top:9px; }}
+  .tags {{ display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }}
+  .tag  {{ background:#1e3a5f; color:#93c5fd; font-size:.72em; padding:2px 8px;
+            border-radius:10px; }}
 </style>
 </head>
 <body>
@@ -488,11 +596,58 @@ def export_html(games: list[dict], path: Path) -> None:
 <div class="stats">
 {stats_html}
 </div>
+<div class="filters">
+  <div class="filter-row">
+    <span class="filter-label">Plateforme</span>
+    {plat_btns}
+  </div>
+  <div class="filter-row">
+    <span class="filter-label">Genre</span>
+    {genre_btns}
+  </div>
+</div>
+<p class="count-info"><span id="vis-count">{total}</span> / {total} jeux</p>
 <table>
   <thead><tr><th></th><th>Jeu</th><th class="hrs">Heures</th></tr></thead>
   <tbody>
 {rows}  </tbody>
 </table>
+<script>
+(function() {{
+  let activePlat  = 'all';
+  let activeGenre = 'all';
+  function filterRows() {{
+    let visible = 0;
+    document.querySelectorAll('tbody tr').forEach(row => {{
+      const plats  = (row.dataset.plats  || '').split(' ');
+      const genres = (row.dataset.genres || '').split(' ');
+      const ok = (activePlat  === 'all' || plats.includes(activePlat)) &&
+                 (activeGenre === 'all' || genres.includes(activeGenre));
+      row.style.display = ok ? '' : 'none';
+      if (ok) visible++;
+    }});
+    document.getElementById('vis-count').textContent = visible;
+  }}
+  document.querySelectorAll('.fbtn').forEach(btn => {{
+    btn.addEventListener('click', () => {{
+      const type = btn.dataset.type;
+      const val  = btn.dataset.val;
+      if (type === 'plat') {{
+        activePlat  = (activePlat  === val || val === 'all') ? 'all' : val;
+        document.querySelectorAll('.fbtn[data-type="plat"]').forEach(b =>
+          b.classList.toggle('active', activePlat === 'all' ? b.dataset.val === 'all' : b.dataset.val === activePlat)
+        );
+      }} else {{
+        activeGenre = (activeGenre === val || val === 'all') ? 'all' : val;
+        document.querySelectorAll('.fbtn[data-type="genre"]').forEach(b =>
+          b.classList.toggle('active', activeGenre === 'all' ? b.dataset.val === 'all' : b.dataset.val === activeGenre)
+        );
+      }}
+      filterRows();
+    }});
+  }});
+}})();
+</script>
 </body>
 </html>"""
 
@@ -534,6 +689,9 @@ def main() -> None:
     print(f"   → {len(u)} jeux")
 
     print(f"\n🎮 Total : {len(all_games)} jeux\n")
+
+    print("🏷️  Genres Steam…")
+    all_games = fetch_genres(all_games)
 
     if not all_games:
         print("Aucun jeu trouvé. Vérifiez la configuration.")

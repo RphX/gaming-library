@@ -7,8 +7,14 @@ Generates a unified game library from **Steam**, **Epic Games Store**, **EA App*
 
 ## Output
 
-- `games_library.csv` — flat list of all games with platform, app ID and playtime
-- `games_library.html` — visual dashboard with platform logos, stats and unified table
+- `games_library.csv` — flat list of all games with platform, app ID, playtime and genres
+- `games_library.html` — visual dashboard with platform logos, stats, genre tags and interactive filters
+
+## Features
+
+- **Genre classification** — Steam genres fetched automatically via the Steam Store API and cached locally in `genres_cache.json` (only on first run, ~1 min for 245 games; instant afterwards)
+- **Interactive filters** — filter by platform and/or genre with a single click; counter shows how many games are currently visible
+- **Cross-platform deduplication** — a game owned on multiple stores is shown once with all platform logos
 
 ## Requirements
 
