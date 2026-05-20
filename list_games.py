@@ -804,8 +804,6 @@ def export_html(games: list[dict], path: Path) -> None:
     status_btns = '<button class="fbtn active" data-type="status" data-val="all">Tous</button>\n'
     for s in _STATUS_ORDER:
         cnt = status_count.get(s, 0)
-        if cnt == 0:
-            continue
         color = _STATUS_COLOR[s]
         label = _STATUS_LABEL[s]
         status_btns += (
