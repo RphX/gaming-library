@@ -841,9 +841,18 @@ def export_html(games: list[dict], path: Path) -> None:
         else:
             hltb_td = '<td class="hltb"></td>'
         status = g.get("status", "non-commence")
-        sc = _STATUS_COLOR.get(status, "#6b7280")
-        sl = _STATUS_LABEL.get(status, status)
-        status_td = f'<td class="sdot" style="color:{sc}" title="{sl}">●</td>'
+        gkey   = _normalize_name(g["name"])
+        opts   = "".join(
+            f'<option value="{s}"{" selected" if s == status else ""}>{_STATUS_LABEL[s]}</option>'
+            for s in _STATUS_ORDER
+        )
+        status_td = (
+            f'<td class="sstat">'
+            f'<select class="ssel" data-game="{gkey}" data-default="{status}">'
+            f'{opts}'
+            f'</select>'
+            f'</td>'
+        )
         rows += (
             f"<tr data-plats='{plat_data}' data-genres='{genre_data}' data-status='{status}'>"
             f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}{hltb_td}{status_td}</tr>\n"
@@ -890,8 +899,12 @@ def export_html(games: list[dict], path: Path) -> None:
   td.hrs  {{ text-align:right; color:#6b7280; font-size:.85em; width:72px; padding-top:9px; }}
   td.hltb {{ text-align:right; color:#34d399; font-size:.82em; width:68px; padding-top:9px; cursor:default; }}
   thead th.hltb {{ text-align:right; }}
-  td.sdot  {{ text-align:center; width:20px; padding:9px 2px 0; font-size:.65em; cursor:default; }}
-  thead th.sdot {{ width:20px; }}
+  td.sstat  {{ width:128px; padding:5px 8px; vertical-align:middle; }}
+  thead th.sstat {{ width:128px; }}
+  .ssel {{ width:100%; background:#1f2937; color:#d1d5db; border:1px solid #374151;
+           border-radius:6px; padding:4px 8px; font-size:.78em; cursor:pointer;
+           appearance:none; -webkit-appearance:none; transition:border-color .15s; }}
+  .ssel:focus {{ outline:none; border-color:#4f46e5; }}
   .tags {{ display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }}
   .tag  {{ background:#1e3a5f; color:#93c5fd; font-size:.72em; padding:2px 8px;
             border-radius:10px; }}
@@ -915,19 +928,65 @@ def export_html(games: list[dict], path: Path) -> None:
   <div class="filter-row">
     <span class="filter-label">Statut</span>
     {status_btns}
+    <button id="export-btn" class="fbtn" style="margin-left:auto;border:1px solid #374151">📋 Exporter config</button>
   </div>
 </div>
 <p class="count-info"><span id="vis-count">{total}</span> / {total} jeux</p>
 <table>
-  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th><th class="sdot"></th></tr></thead>
+  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th><th class="sstat">Statut</th></tr></thead>
   <tbody>
 {rows}  </tbody>
 </table>
 <script>
 (function() {{
+  const LS  = 'gl_status_';
+  const COL = {{'a-faire':'#f59e0b','non-commence':'#6b7280','en-cours':'#3b82f6','termine':'#10b981'}};
+
+  function applyColor(sel) {{
+    const c = COL[sel.value] || '#6b7280';
+    sel.style.color = c;
+    sel.style.borderColor = c + '66';
+  }}
+
+  // Initialise les selects depuis localStorage et branche les events
+  document.querySelectorAll('.ssel').forEach(sel => {{
+    const saved = localStorage.getItem(LS + sel.dataset.game);
+    if (saved) {{
+      sel.value = saved;
+      sel.closest('tr').dataset.status = saved;
+    }}
+    applyColor(sel);
+    sel.addEventListener('change', () => {{
+      const val = sel.value;
+      localStorage.setItem(LS + sel.dataset.game, val);
+      sel.closest('tr').dataset.status = val;
+      applyColor(sel);
+      filterRows();
+    }});
+  }});
+
+  // Bouton export → copie GAME_STATUS Python dans le presse-papiers
+  document.getElementById('export-btn').addEventListener('click', () => {{
+    const lines = [];
+    document.querySelectorAll('.ssel').forEach(sel => {{
+      const val = sel.value;
+      const name = sel.closest('tr').querySelector('td:nth-child(2)').childNodes[0].textContent.trim();
+      lines.push('    ' + JSON.stringify(name) + ': "' + val + '",');
+    }});
+    const txt = 'GAME_STATUS: dict[str, str] = {{\n' + lines.join('\n') + '\n}}';
+    const btn = document.getElementById('export-btn');
+    (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+      .then(() => {{
+        btn.textContent = '✅ Copié !';
+        setTimeout(() => {{ btn.textContent = '📋 Exporter config'; }}, 2000);
+      }})
+      .catch(() => {{ prompt('Copiez ce texte :', txt); }});
+  }});
+
   let activePlat   = 'all';
   let activeGenre  = 'all';
   let activeStatus = 'all';
+
   function filterRows() {{
     let visible = 0;
     document.querySelectorAll('tbody tr').forEach(row => {{
@@ -942,10 +1001,12 @@ def export_html(games: list[dict], path: Path) -> None:
     }});
     document.getElementById('vis-count').textContent = visible;
   }}
+
   document.querySelectorAll('.fbtn').forEach(btn => {{
     btn.addEventListener('click', () => {{
       const type = btn.dataset.type;
       const val  = btn.dataset.val;
+      if (!type) return;
       if (type === 'plat') {{
         activePlat  = (activePlat  === val || val === 'all') ? 'all' : val;
         document.querySelectorAll('.fbtn[data-type="plat"]').forEach(b =>
