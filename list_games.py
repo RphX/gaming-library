@@ -39,6 +39,10 @@ except ImportError:
     EGS_MANUAL_GAMES = []
     UBI_MANUAL_GAMES = []
     MANUAL_DLCS = []
+try:
+    from config import GAME_STATUS
+except ImportError:
+    GAME_STATUS: dict[str, str] = {}
 
 
 def _normalize_name(s: str) -> str:
@@ -687,6 +691,35 @@ _PLATFORM_ICON = {
 
 _PLATFORM_PRIORITY = {"Steam": 0, "GOG": 1, "EGS": 2, "EA": 3, "Ubisoft": 4}
 
+_STATUS_ORDER = ["a-faire", "en-cours", "termine", "non-commence"]
+_STATUS_LABEL = {
+    "a-faire":      "À faire",
+    "non-commence": "Non commencé",
+    "en-cours":     "En cours",
+    "termine":      "Terminé",
+}
+_STATUS_COLOR = {
+    "a-faire":      "#f59e0b",
+    "non-commence": "#6b7280",
+    "en-cours":     "#3b82f6",
+    "termine":      "#10b981",
+}
+
+
+def _game_status(g: dict) -> str:
+    """Auto-détecte le statut de progression ou applique le override manuel."""
+    norm = _normalize_name(g["name"])
+    for oname, ostatus in GAME_STATUS.items():
+        if _normalize_name(oname) == norm:
+            return ostatus
+    hrs = g.get("hours_played")
+    hm  = g.get("hours_main")
+    if hrs == "" or hrs == 0 or hrs is None:
+        return "non-commence"
+    if hm is not None and isinstance(hrs, (int, float)) and hrs >= hm * 0.9:
+        return "termine"
+    return "en-cours"
+
 
 def export_html(games: list[dict], path: Path) -> None:
     # ── Compte par plateforme ──────────────────────────────
@@ -716,6 +749,8 @@ def export_html(games: list[dict], path: Path) -> None:
                 m["genres"].append(genre)
 
     unified = sorted(merged.values(), key=lambda x: x["name"].lower())
+    for g in unified:
+        g["status"] = _game_status(g)
     total = len(unified)
     ts = datetime.now().strftime("%d/%m/%Y %H:%M")
 
@@ -765,6 +800,24 @@ def export_html(games: list[dict], path: Path) -> None:
             f'</button>\n'
         )
 
+    # ── Filtres statut ─────────────────────────────────────
+    status_count: dict[str, int] = {}
+    for g in unified:
+        status_count[g["status"]] = status_count.get(g["status"], 0) + 1
+    status_btns = '<button class="fbtn active" data-type="status" data-val="all">Tous</button>\n'
+    for s in _STATUS_ORDER:
+        cnt = status_count.get(s, 0)
+        if cnt == 0:
+            continue
+        color = _STATUS_COLOR[s]
+        label = _STATUS_LABEL[s]
+        status_btns += (
+            f'<button class="fbtn" data-type="status" data-val="{s}">'
+            f'<span style="color:{color}">●</span> {label} '
+            f'<span class="gcnt">{cnt}</span>'
+            f'</button>\n'
+        )
+
     # ── Lignes du tableau ──────────────────────────────────
     rows = ""
     for g in unified:
@@ -790,9 +843,13 @@ def export_html(games: list[dict], path: Path) -> None:
             hltb_td = f'<td class="hltb" title="{tooltip}">{inner}</td>'
         else:
             hltb_td = '<td class="hltb"></td>'
+        status = g.get("status", "non-commence")
+        sc = _STATUS_COLOR.get(status, "#6b7280")
+        sl = _STATUS_LABEL.get(status, status)
+        status_td = f'<td class="sdot" style="color:{sc}" title="{sl}">●</td>'
         rows += (
-            f"<tr data-plats='{plat_data}' data-genres='{genre_data}'>"
-            f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}{hltb_td}</tr>\n"
+            f"<tr data-plats='{plat_data}' data-genres='{genre_data}' data-status='{status}'>"
+            f"<td class='plat'>{logos}</td><td>{name_cell}</td>{hrs_td}{hltb_td}{status_td}</tr>\n"
         )
 
     html = f"""<!DOCTYPE html>
@@ -836,6 +893,8 @@ def export_html(games: list[dict], path: Path) -> None:
   td.hrs  {{ text-align:right; color:#6b7280; font-size:.85em; width:72px; padding-top:9px; }}
   td.hltb {{ text-align:right; color:#34d399; font-size:.82em; width:68px; padding-top:9px; cursor:default; }}
   thead th.hltb {{ text-align:right; }}
+  td.sdot  {{ text-align:center; width:20px; padding:9px 2px 0; font-size:.65em; cursor:default; }}
+  thead th.sdot {{ width:20px; }}
   .tags {{ display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }}
   .tag  {{ background:#1e3a5f; color:#93c5fd; font-size:.72em; padding:2px 8px;
             border-radius:10px; }}
@@ -856,24 +915,31 @@ def export_html(games: list[dict], path: Path) -> None:
     <span class="filter-label">Genre</span>
     {genre_btns}
   </div>
+  <div class="filter-row">
+    <span class="filter-label">Statut</span>
+    {status_btns}
+  </div>
 </div>
 <p class="count-info"><span id="vis-count">{total}</span> / {total} jeux</p>
 <table>
-  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th></tr></thead>
+  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th><th class="sdot"></th></tr></thead>
   <tbody>
 {rows}  </tbody>
 </table>
 <script>
 (function() {{
-  let activePlat  = 'all';
-  let activeGenre = 'all';
+  let activePlat   = 'all';
+  let activeGenre  = 'all';
+  let activeStatus = 'all';
   function filterRows() {{
     let visible = 0;
     document.querySelectorAll('tbody tr').forEach(row => {{
       const plats  = (row.dataset.plats  || '').split(' ');
       const genres = (row.dataset.genres || '').split(' ');
-      const ok = (activePlat  === 'all' || plats.includes(activePlat)) &&
-                 (activeGenre === 'all' || genres.includes(activeGenre));
+      const status =  row.dataset.status || '';
+      const ok = (activePlat   === 'all' || plats.includes(activePlat)) &&
+                 (activeGenre  === 'all' || genres.includes(activeGenre)) &&
+                 (activeStatus === 'all' || status === activeStatus);
       row.style.display = ok ? '' : 'none';
       if (ok) visible++;
     }});
@@ -888,10 +954,15 @@ def export_html(games: list[dict], path: Path) -> None:
         document.querySelectorAll('.fbtn[data-type="plat"]').forEach(b =>
           b.classList.toggle('active', activePlat === 'all' ? b.dataset.val === 'all' : b.dataset.val === activePlat)
         );
-      }} else {{
+      }} else if (type === 'genre') {{
         activeGenre = (activeGenre === val || val === 'all') ? 'all' : val;
         document.querySelectorAll('.fbtn[data-type="genre"]').forEach(b =>
           b.classList.toggle('active', activeGenre === 'all' ? b.dataset.val === 'all' : b.dataset.val === activeGenre)
+        );
+      }} else {{
+        activeStatus = (activeStatus === val || val === 'all') ? 'all' : val;
+        document.querySelectorAll('.fbtn[data-type="status"]').forEach(b =>
+          b.classList.toggle('active', activeStatus === 'all' ? b.dataset.val === 'all' : b.dataset.val === activeStatus)
         );
       }}
       filterRows();

@@ -30,3 +30,16 @@ UBI_MANUAL_GAMES: list[str] = [
 MANUAL_DLCS: list[str] = [
     # "Borderlands 3 Bounty of Blood",
 ]
+
+# ── Statut de progression ─────────────────────────────────────────
+# Forcer le statut d'un jeu. Valeurs possibles :
+#   "a-faire"      → dans votre liste à faire (pas encore acheté ou pas commencé)
+#   "en-cours"     → en train d'y jouer
+#   "termine"      → terminé
+#   "non-commence" → pas encore commencé (utile pour réinitialiser l'auto-détection)
+# Les jeux non listés sont auto-détectés à partir du temps de jeu Steam.
+GAME_STATUS: dict[str, str] = {
+    # "Cyberpunk 2077": "termine",
+    # "Hades": "en-cours",
+    # "Hollow Knight": "a-faire",
+}

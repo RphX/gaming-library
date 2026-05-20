@@ -39,6 +39,8 @@
   td.hrs  { text-align:right; color:#6b7280; font-size:.85em; width:72px; padding-top:9px; }
   td.hltb { text-align:right; color:#34d399; font-size:.82em; width:68px; padding-top:9px; cursor:default; }
   thead th.hltb { text-align:right; }
+  td.sdot  { text-align:center; width:20px; padding:9px 2px 0; font-size:.65em; cursor:default; }
+  thead th.sdot { width:20px; }
   .tags { display:flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
   .tag  { background:#1e3a5f; color:#93c5fd; font-size:.72em; padding:2px 8px;
             border-radius:10px; }
@@ -46,14 +48,14 @@
 </head>
 <body>
 <h1>🎮 Ma bibliothèque de jeux</h1>
-<p class="ts">Généré le 19/05/2026 22:13</p>
+<p class="ts">Généré le 20/05/2026 09:10</p>
 <div class="stats">
-<div class="stat"><div class="num">15</div><div class="lbl">Total</div></div>
-<div class="stat" style="border-color:#66c0f4"><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="32" title="Steam"><div class="num" style="color:#66c0f4">10</div></div>
-<div class="stat" style="border-color:#0078f2"><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="32" title="EGS"><div class="num" style="color:#0078f2">3</div></div>
-<div class="stat" style="border-color:#ff4500"><img src="https://cdn.simpleicons.org/ea/ff4500" alt="EA" height="32" title="EA"><div class="num" style="color:#ff4500">2</div></div>
-<div class="stat" style="border-color:#86328a"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="32" title="GOG"><div class="num" style="color:#86328a">4</div></div>
-<div class="stat" style="border-color:#0070f3"><img src="https://cdn.simpleicons.org/ubisoft/0070f3" alt="Ubisoft" height="32" title="Ubisoft"><div class="num" style="color:#0070f3">2</div></div>
+<div class="stat"><div class="num">10</div><div class="lbl">Total</div></div>
+<div class="stat" style="border-color:#66c0f4"><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="32" title="Steam"><div class="num" style="color:#66c0f4">6</div></div>
+<div class="stat" style="border-color:#0078f2"><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="32" title="EGS"><div class="num" style="color:#0078f2">2</div></div>
+<div class="stat" style="border-color:#ff4500"><img src="https://cdn.simpleicons.org/ea/ff4500" alt="EA" height="32" title="EA"><div class="num" style="color:#ff4500">1</div></div>
+<div class="stat" style="border-color:#86328a"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="32" title="GOG"><div class="num" style="color:#86328a">1</div></div>
+<div class="stat" style="border-color:#0070f3"><img src="https://cdn.simpleicons.org/ubisoft/0070f3" alt="Ubisoft" height="32" title="Ubisoft"><div class="num" style="color:#0070f3">1</div></div>
 
 </div>
 <div class="filters">
@@ -70,50 +72,56 @@
   <div class="filter-row">
     <span class="filter-label">Genre</span>
     <button class="fbtn active" data-type="genre" data-val="all">Tous</button>
-<button class="fbtn" data-type="genre" data-val="action">Action <span class="gcnt">12</span></button>
-<button class="fbtn" data-type="genre" data-val="adventure">Adventure <span class="gcnt">9</span></button>
+<button class="fbtn" data-type="genre" data-val="action">Action <span class="gcnt">8</span></button>
 <button class="fbtn" data-type="genre" data-val="rpg">RPG <span class="gcnt">5</span></button>
+<button class="fbtn" data-type="genre" data-val="adventure">Adventure <span class="gcnt">3</span></button>
+<button class="fbtn" data-type="genre" data-val="indie">Indie <span class="gcnt">2</span></button>
 <button class="fbtn" data-type="genre" data-val="strategy">Strategy <span class="gcnt">1</span></button>
 <button class="fbtn" data-type="genre" data-val="free-to-play">Free To Play <span class="gcnt">1</span></button>
-<button class="fbtn" data-type="genre" data-val="indie">Indie <span class="gcnt">1</span></button>
 <button class="fbtn" data-type="genre" data-val="sports">Sports <span class="gcnt">1</span></button>
 <button class="fbtn" data-type="genre" data-val="simulation">Simulation <span class="gcnt">1</span></button>
 <button class="fbtn" data-type="genre" data-val="puzzle">Puzzle <span class="gcnt">1</span></button>
 
   </div>
+  <div class="filter-row">
+    <span class="filter-label">Statut</span>
+    <button class="fbtn active" data-type="status" data-val="all">Tous</button>
+<button class="fbtn" data-type="status" data-val="en-cours"><span style="color:#3b82f6">●</span> En cours <span class="gcnt">2</span></button>
+<button class="fbtn" data-type="status" data-val="termine"><span style="color:#10b981">●</span> Terminé <span class="gcnt">3</span></button>
+<button class="fbtn" data-type="status" data-val="non-commence"><span style="color:#6b7280">●</span> Non commencé <span class="gcnt">5</span></button>
+
+  </div>
 </div>
-<p class="count-info"><span id="vis-count">15</span> / 15 jeux</p>
+<p class="count-info"><span id="vis-count">10</span> / 10 jeux</p>
 <table>
-  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th></tr></thead>
+  <thead><tr><th></th><th>Jeu</th><th class="hrs">Joué</th><th class="hltb" title="Temps principal (HowLongToBeat)">HLTB</th><th class="sdot"></th></tr></thead>
   <tbody>
-<tr data-plats='egs' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="16" title="EGS"></td><td>Alan Wake 2<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 18.5h | 100 % 24h"><a href="https://howlongtobeat.com/game/68160" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">13h</a></td></tr>
-<tr data-plats='ubisoft' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/ubisoft/0070f3" alt="Ubisoft" height="16" title="Ubisoft"></td><td>Assassin's Creed Origins<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 54.5h | 100 % 83h"><a href="https://howlongtobeat.com/game/38050" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">29.5h</a></td></tr>
-<tr data-plats='steam gog' data-genres='rpg strategy'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="16" title="GOG"></td><td>Baldur's Gate 3<div class="tags"><span class="tag">RPG</span><span class="tag">Strategy</span></div></td><td class="hrs">96.0h</td><td class="hltb" title="Extra 155h | 100 % 200h"><a href="https://howlongtobeat.com/game/75516" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">100h</a></td></tr>
-<tr data-plats='steam egs' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="16" title="EGS"></td><td>Control Ultimate Edition<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs">12.3h</td><td class="hltb" title="Extra 16h | 100 % 22h"><a href="https://howlongtobeat.com/game/52435" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">11h</a></td></tr>
-<tr data-plats='steam' data-genres='action free-to-play'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Counter-Strike 2<div class="tags"><span class="tag">Action</span><span class="tag">Free To Play</span></div></td><td class="hrs">340.0h</td><td class="hltb"></td></tr>
-<tr data-plats='steam gog' data-genres='action rpg'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="16" title="GOG"></td><td>Cyberpunk 2077<div class="tags"><span class="tag">Action</span><span class="tag">RPG</span></div></td><td class="hrs">87.5h</td><td class="hltb" title="Extra 55h | 100 % 100h"><a href="https://howlongtobeat.com/game/68606" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">25.5h</a></td></tr>
-<tr data-plats='egs' data-genres='action adventure indie'><td class='plat'><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="16" title="EGS"></td><td>Death's Door<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span><span class="tag">Indie</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 12h | 100 % 15h"><a href="https://howlongtobeat.com/game/82118" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">8h</a></td></tr>
-<tr data-plats='steam gog' data-genres='rpg'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="16" title="GOG"></td><td>Disco Elysium<div class="tags"><span class="tag">RPG</span></div></td><td class="hrs">23.0h</td><td class="hltb" title="Extra 31h | 100 % 41h"><a href="https://howlongtobeat.com/game/50919" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">21h</a></td></tr>
-<tr data-plats='ubisoft' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/ubisoft/0070f3" alt="Ubisoft" height="16" title="Ubisoft"></td><td>Far Cry 5<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 34h | 100 % 50.5h"><a href="https://howlongtobeat.com/game/40432" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">17h</a></td></tr>
-<tr data-plats='ea' data-genres='sports simulation'><td class='plat'><img src="https://cdn.simpleicons.org/ea/ff4500" alt="EA" height="16" title="EA"></td><td>FIFA 25<div class="tags"><span class="tag">Sports</span><span class="tag">Simulation</span></div></td><td class="hrs"></td><td class="hltb"></td></tr>
-<tr data-plats='steam' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Grand Theft Auto V<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs">156.0h</td><td class="hltb" title="Extra 76h | 100 % 165h"><a href="https://howlongtobeat.com/game/9767" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">31.5h</a></td></tr>
-<tr data-plats='steam' data-genres='action adventure'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Half-Life: Alyx<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs">9.2h</td><td class="hltb" title="Extra 11.5h | 100 % 16h"><a href="https://howlongtobeat.com/game/58556" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">9h</a></td></tr>
-<tr data-plats='steam ea' data-genres='action adventure rpg'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/ea/ff4500" alt="EA" height="16" title="EA"></td><td>Mass Effect Legendary Edition<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span><span class="tag">RPG</span></div></td><td class="hrs">72.0h</td><td class="hltb" title="Extra 120h | 100 % 149h"><a href="https://howlongtobeat.com/game/80516" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">88h</a></td></tr>
-<tr data-plats='steam' data-genres='action adventure puzzle'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Portal 2<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span><span class="tag">Puzzle</span></div></td><td class="hrs">15.4h</td><td class="hltb" title="Extra 12h | 100 % 18.5h"><a href="https://howlongtobeat.com/game/7902" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">8.5h</a></td></tr>
-<tr data-plats='steam gog' data-genres='action rpg'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="16" title="GOG"></td><td>The Witcher 3: Wild Hunt<div class="tags"><span class="tag">Action</span><span class="tag">RPG</span></div></td><td class="hrs">124.0h</td><td class="hltb" title="Extra 103h | 100 % 173h"><a href="https://howlongtobeat.com/game/10270" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">52h</a></td></tr>
+<tr data-plats='egs' data-genres='action adventure' data-status='non-commence'><td class='plat'><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="16" title="EGS"></td><td>Alan Wake 2<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 18h | 100 % 25h"><a href="https://howlongtobeat.com/game/82789" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">13h</a></td><td class="sdot" style="color:#6b7280" title="Non commencé">●</td></tr>
+<tr data-plats='steam' data-genres='rpg strategy' data-status='en-cours'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Baldurs Gate 3<div class="tags"><span class="tag">RPG</span><span class="tag">Strategy</span></div></td><td class="hrs">45.0h</td><td class="hltb" title="Extra 175h | 100 % 350h"><a href="https://howlongtobeat.com/game/68598" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">100h</a></td><td class="sdot" style="color:#3b82f6" title="En cours">●</td></tr>
+<tr data-plats='steam' data-genres='action free-to-play' data-status='en-cours'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Counter-Strike 2<div class="tags"><span class="tag">Action</span><span class="tag">Free To Play</span></div></td><td class="hrs">85.0h</td><td class="hltb"></td><td class="sdot" style="color:#3b82f6" title="En cours">●</td></tr>
+<tr data-plats='steam gog' data-genres='action rpg' data-status='termine'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"><img src="https://cdn.simpleicons.org/gogdotcom/86328a" alt="GOG" height="16" title="GOG"></td><td>Cyberpunk 2077<div class="tags"><span class="tag">Action</span><span class="tag">RPG</span></div></td><td class="hrs">62.0h</td><td class="hltb" title="Extra 55h | 100 % 90h"><a href="https://howlongtobeat.com/game/68151" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">26h</a></td><td class="sdot" style="color:#10b981" title="Terminé">●</td></tr>
+<tr data-plats='ubisoft' data-genres='action adventure' data-status='non-commence'><td class='plat'><img src="https://cdn.simpleicons.org/ubisoft/0070f3" alt="Ubisoft" height="16" title="Ubisoft"></td><td>Far Cry 5<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 30h | 100 % 48h"><a href="https://howlongtobeat.com/game/44933" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">17h</a></td><td class="sdot" style="color:#6b7280" title="Non commencé">●</td></tr>
+<tr data-plats='ea' data-genres='sports simulation' data-status='non-commence'><td class='plat'><img src="https://cdn.simpleicons.org/ea/ff4500" alt="EA" height="16" title="EA"></td><td>FIFA 25<div class="tags"><span class="tag">Sports</span><span class="tag">Simulation</span></div></td><td class="hrs"></td><td class="hltb"></td><td class="sdot" style="color:#6b7280" title="Non commencé">●</td></tr>
+<tr data-plats='egs' data-genres='action indie rpg' data-status='non-commence'><td class='plat'><img src="https://cdn.simpleicons.org/epicgames/0078f2" alt="EGS" height="16" title="EGS"></td><td>Hades<div class="tags"><span class="tag">Action</span><span class="tag">Indie</span><span class="tag">RPG</span></div></td><td class="hrs"></td><td class="hltb" title="Extra 90h"><a href="https://howlongtobeat.com/game/66859" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">21h</a></td><td class="sdot" style="color:#6b7280" title="Non commencé">●</td></tr>
+<tr data-plats='steam' data-genres='action indie rpg' data-status='non-commence'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Hollow Knight<div class="tags"><span class="tag">Action</span><span class="tag">Indie</span><span class="tag">RPG</span></div></td><td class="hrs">0h</td><td class="hltb" title="Extra 44h | 100 % 68h"><a href="https://howlongtobeat.com/game/38791" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">27h</a></td><td class="sdot" style="color:#6b7280" title="Non commencé">●</td></tr>
+<tr data-plats='steam' data-genres='action adventure puzzle' data-status='termine'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>Portal 2<div class="tags"><span class="tag">Action</span><span class="tag">Adventure</span><span class="tag">Puzzle</span></div></td><td class="hrs">15.0h</td><td class="hltb" title="Extra 11h | 100 % 18h"><a href="https://howlongtobeat.com/game/8173" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">9h</a></td><td class="sdot" style="color:#10b981" title="Terminé">●</td></tr>
+<tr data-plats='steam' data-genres='action rpg' data-status='termine'><td class='plat'><img src="https://cdn.simpleicons.org/steam/66c0f4" alt="Steam" height="16" title="Steam"></td><td>The Witcher 3<div class="tags"><span class="tag">Action</span><span class="tag">RPG</span></div></td><td class="hrs">124.0h</td><td class="hltb" title="Extra 95h | 100 % 175h"><a href="https://howlongtobeat.com/game/10270" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">52h</a></td><td class="sdot" style="color:#10b981" title="Terminé">●</td></tr>
   </tbody>
 </table>
 <script>
 (function() {
-  let activePlat  = 'all';
-  let activeGenre = 'all';
+  let activePlat   = 'all';
+  let activeGenre  = 'all';
+  let activeStatus = 'all';
   function filterRows() {
     let visible = 0;
     document.querySelectorAll('tbody tr').forEach(row => {
       const plats  = (row.dataset.plats  || '').split(' ');
       const genres = (row.dataset.genres || '').split(' ');
-      const ok = (activePlat  === 'all' || plats.includes(activePlat)) &&
-                 (activeGenre === 'all' || genres.includes(activeGenre));
+      const status =  row.dataset.status || '';
+      const ok = (activePlat   === 'all' || plats.includes(activePlat)) &&
+                 (activeGenre  === 'all' || genres.includes(activeGenre)) &&
+                 (activeStatus === 'all' || status === activeStatus);
       row.style.display = ok ? '' : 'none';
       if (ok) visible++;
     });
@@ -128,10 +136,15 @@
         document.querySelectorAll('.fbtn[data-type="plat"]').forEach(b =>
           b.classList.toggle('active', activePlat === 'all' ? b.dataset.val === 'all' : b.dataset.val === activePlat)
         );
-      } else {
+      } else if (type === 'genre') {
         activeGenre = (activeGenre === val || val === 'all') ? 'all' : val;
         document.querySelectorAll('.fbtn[data-type="genre"]').forEach(b =>
           b.classList.toggle('active', activeGenre === 'all' ? b.dataset.val === 'all' : b.dataset.val === activeGenre)
+        );
+      } else {
+        activeStatus = (activeStatus === val || val === 'all') ? 'all' : val;
+        document.querySelectorAll('.fbtn[data-type="status"]').forEach(b =>
+          b.classList.toggle('active', activeStatus === 'all' ? b.dataset.val === 'all' : b.dataset.val === activeStatus)
         );
       }
       filterRows();
