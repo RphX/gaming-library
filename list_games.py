@@ -707,17 +707,14 @@ _STATUS_COLOR = {
 
 
 def _game_status(g: dict) -> str:
-    """Auto-détecte le statut de progression ou applique le override manuel."""
+    """Retourne le statut de progression : override manuel en priorité, sinon auto sur le temps de jeu."""
     norm = _normalize_name(g["name"])
     for oname, ostatus in GAME_STATUS.items():
         if _normalize_name(oname) == norm:
             return ostatus
     hrs = g.get("hours_played")
-    hm  = g.get("hours_main")
     if hrs == "" or hrs == 0 or hrs is None:
         return "non-commence"
-    if hm is not None and isinstance(hrs, (int, float)) and hrs >= hm * 0.9:
-        return "termine"
     return "en-cours"
 
 

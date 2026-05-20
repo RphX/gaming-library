@@ -32,12 +32,12 @@ MANUAL_DLCS: list[str] = [
 ]
 
 # ── Statut de progression ─────────────────────────────────────────
-# Forcer le statut d'un jeu. Valeurs possibles :
-#   "a-faire"      → dans votre liste à faire (pas encore acheté ou pas commencé)
+# Définissez ici le statut de chaque jeu. Valeurs possibles :
+#   "a-faire"      → dans votre liste à faire
 #   "en-cours"     → en train d'y jouer
 #   "termine"      → terminé
-#   "non-commence" → pas encore commencé (utile pour réinitialiser l'auto-détection)
-# Les jeux non listés sont auto-détectés à partir du temps de jeu Steam.
+#   "non-commence" → pas encore commencé
+# Par défaut (si non renseigné) : "non-commence" si 0h joué, "en-cours" sinon.
 GAME_STATUS: dict[str, str] = {
     # "Cyberpunk 2077": "termine",
     # "Hades": "en-cours",
