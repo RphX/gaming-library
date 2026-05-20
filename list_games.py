@@ -973,7 +973,7 @@ def export_html(games: list[dict], path: Path) -> None:
       const name = sel.closest('tr').querySelector('td:nth-child(2)').childNodes[0].textContent.trim();
       lines.push('    ' + JSON.stringify(name) + ': "' + val + '",');
     }});
-    const txt = 'GAME_STATUS: dict[str, str] = {{\n' + lines.join('\n') + '\n}}';
+    const txt = 'GAME_STATUS: dict[str, str] = {{\\n' + lines.join('\\n') + '\\n}}';
     const btn = document.getElementById('export-btn');
     (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
       .then(() => {{
